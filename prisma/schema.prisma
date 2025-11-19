@@ -1,0 +1,41 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../node_modules/.prisma/client"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+  extensions = [pgvector(map: "vector", schema: "public")]
+}
+
+// 예시 모델들 - 필요에 따라 수정하세요
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("users")
+}
+
+// 벡터 검색을 위한 예시 모델
+model Document {
+  id        String   @id @default(cuid())
+  content   String
+  // pgvector를 사용한 임베딩 저장 (Unsupported 타입으로 정의)
+  embedding Unsupported("vector(1536)")?
+  metadata  Json?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("documents")
+  @@index([embedding], type: Ivfflat)
+}
