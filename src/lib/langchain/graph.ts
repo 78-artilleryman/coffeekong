@@ -12,7 +12,7 @@ interface GraphState {
 export function createConversationGraph() {
   const model = new ChatOpenAI({
     openAIApiKey: process.env.OPENAI_API_KEY,
-    modelName: "gpt-4o-mini",
+    modelName: "solar-pro2",
   });
 
   // 노드 함수들
