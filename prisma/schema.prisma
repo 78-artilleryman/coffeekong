@@ -1,41 +1,194 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
-  provider = "prisma-client-js"
-  output   = "../node_modules/.prisma/client"
+  provider        = "prisma-client-js"
+  output          = "../node_modules/.prisma/client"
   previewFeatures = ["postgresqlExtensions"]
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
-  directUrl = env("DIRECT_URL")
-  extensions = [pgvector(map: "vector", schema: "public")]
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [uuid_ossp(map: "uuid-ossp", schema: "extensions"), vector(schema: "extensions")]
 }
 
-// 예시 모델들 - 필요에 따라 수정하세요
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model chatbot_messages {
+  id               BigInt             @id @default(autoincrement())
+  session_id       String             @db.Uuid
+  role             String
+  content          String
+  tokens           Int?
+  created_at       DateTime?          @default(now()) @db.Timestamptz(6)
+  tool_meta_id     BigInt?
+  chatbot_sessions chatbot_sessions   @relation(fields: [session_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  tools_audit      tools_audit?       @relation(fields: [tool_meta_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  message_contexts message_contexts[]
 
-model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  name      String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@map("users")
+  @@index([session_id], map: "idx_messages_session")
 }
 
-// 벡터 검색을 위한 예시 모델
-model Document {
-  id        String   @id @default(cuid())
-  content   String
-  // pgvector를 사용한 임베딩 저장 (Unsupported 타입으로 정의)
-  embedding Unsupported("vector(1536)")?
-  metadata  Json?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model chatbot_sessions {
+  id               String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id          String?            @db.Uuid
+  title            String?
+  started_at       DateTime?          @default(now()) @db.Timestamptz(6)
+  last_activity_at DateTime?          @default(now()) @db.Timestamptz(6)
+  meta             Json?              @default("{}")
+  chatbot_messages chatbot_messages[]
+}
 
-  @@map("documents")
-  @@index([embedding], type: Ivfflat)
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model chunks {
+  id               BigInt                   @id @default(autoincrement())
+  source_id        BigInt
+  transcript_id    BigInt?
+  chunk_index      Int
+  content          String
+  content_tokens   Int?
+  span_start       Int?
+  span_end         Int?
+  lang             String?
+  metadata         Json?                    @default("{}")
+  embedding        Unsupported("vector")?
+  created_at       DateTime?                @default(now()) @db.Timestamptz(6)
+  tool_meta_id     BigInt?
+  content_tsv      Unsupported("tsvector")?
+  sources          sources                  @relation(fields: [source_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  tools_audit      tools_audit?             @relation(fields: [tool_meta_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  transcripts      transcripts?             @relation(fields: [transcript_id], references: [id], onUpdate: NoAction)
+  keywords         keywords[]
+  message_contexts message_contexts[]
+
+  @@unique([source_id, chunk_index])
+  @@index([embedding], map: "idx_chunks_embedding_cosine")
+  @@index([lang], map: "idx_chunks_lang")
+  @@index([metadata], map: "idx_chunks_metadata_gin", type: Gin)
+  @@index([source_id], map: "idx_chunks_source_id")
+  @@index([content_tsv], map: "idx_chunks_tsv_gin", type: Gin)
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model keywords {
+  id         BigInt    @id @default(autoincrement())
+  chunk_id   BigInt
+  term       String
+  type       String?
+  score      Decimal?  @db.Decimal
+  positions  Json?
+  source     String?
+  created_at DateTime? @default(now()) @db.Timestamptz(6)
+  chunks     chunks    @relation(fields: [chunk_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([chunk_id], map: "idx_keywords_chunk")
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model message_contexts {
+  id               BigInt           @id @default(autoincrement())
+  message_id       BigInt
+  chunk_id         BigInt?
+  score            Decimal?         @db.Decimal
+  summary_id       BigInt?
+  chunks           chunks?          @relation(fields: [chunk_id], references: [id], onUpdate: NoAction)
+  chatbot_messages chatbot_messages @relation(fields: [message_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  summaries        summaries?       @relation(fields: [summary_id], references: [id], onUpdate: NoAction)
+
+  @@index([message_id], map: "idx_message_contexts_msg")
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model sources {
+  id              BigInt        @id @default(autoincrement())
+  source_type     String
+  external_id     String?
+  title           String?
+  lang            String?
+  mime_type       String?
+  duration_sec    Decimal?      @db.Decimal
+  size_bytes      BigInt?
+  checksum_sha256 String?       @unique
+  storage_path    String
+  created_by      String?       @db.Uuid
+  tags            String[]
+  created_at      DateTime?     @default(now()) @db.Timestamptz(6)
+  chunks          chunks[]
+  transcripts     transcripts[]
+
+  @@index([tags], map: "idx_sources_tags", type: Gin)
+  @@index([source_type], map: "idx_sources_type")
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model summaries {
+  id               BigInt             @id @default(autoincrement())
+  target_type      String
+  target_id        BigInt
+  model            String?
+  prompt_version   String?
+  summary_type     String?
+  lang             String?
+  tokens_input     Int?
+  tokens_output    Int?
+  summary_text     String
+  quality_score    Decimal?           @db.Decimal
+  created_at       DateTime?          @default(now()) @db.Timestamptz(6)
+  tool_meta_id     BigInt?
+  message_contexts message_contexts[]
+  tools_audit      tools_audit?       @relation(fields: [tool_meta_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([target_type, target_id], map: "idx_summaries_target")
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model tools_audit {
+  id               BigInt             @id @default(autoincrement())
+  tool_name        String
+  provider         String?
+  model            String?
+  prompt_hash      String?
+  params           Json?              @default("{}")
+  input_tokens     Int?
+  output_tokens    Int?
+  cost_usd         Decimal?           @db.Decimal
+  created_at       DateTime?          @default(now()) @db.Timestamptz(6)
+  chatbot_messages chatbot_messages[]
+  chunks           chunks[]
+  summaries        summaries[]
+  transcripts      transcripts[]
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model transcript_segments {
+  id            BigInt      @id @default(autoincrement())
+  transcript_id BigInt
+  idx           Int
+  start_ms      Int
+  end_ms        Int
+  speaker_label String?
+  text          String
+  created_at    DateTime?   @default(now()) @db.Timestamptz(6)
+  transcripts   transcripts @relation(fields: [transcript_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([transcript_id, idx])
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model transcripts {
+  id                  BigInt                @id @default(autoincrement())
+  source_id           BigInt
+  model               String
+  language            String?
+  text_full           String
+  confidence          Decimal?              @db.Decimal
+  segments            Json?
+  diarization         Json?
+  wc_count            Int?
+  created_at          DateTime?             @default(now()) @db.Timestamptz(6)
+  tool_meta_id        BigInt?
+  chunks              chunks[]
+  transcript_segments transcript_segments[]
+  sources             sources               @relation(fields: [source_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  tools_audit         tools_audit?          @relation(fields: [tool_meta_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([source_id], map: "idx_transcripts_source")
 }
