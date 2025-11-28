@@ -48,6 +48,13 @@ export default function TranscriptDetailPage() {
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
+  // RAG 채팅
+  const [chatMessages, setChatMessages] = useState<
+    Array<{ role: "user" | "assistant"; content: string }>
+  >([]);
+  const [chatInput, setChatInput] = useState("");
+  const [chatLoading, setChatLoading] = useState(false);
+
   const fetchTranscript = async () => {
     try {
       const response = await fetch(`/api/transcripts/${params.id}`);
@@ -133,6 +140,56 @@ export default function TranscriptDetailPage() {
     } finally {
       setDeleteLoading(false);
       setShowDeleteConfirm(false);
+    }
+  };
+
+  const handleChatSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!chatInput.trim() || chatLoading || !params.id) return;
+
+    const userMessage = chatInput.trim();
+    setChatInput("");
+
+    // 사용자 메시지 추가
+    const newMessages = [
+      ...chatMessages,
+      { role: "user" as const, content: userMessage },
+    ];
+    setChatMessages(newMessages);
+    setChatLoading(true);
+
+    try {
+      const response = await fetch(`/api/transcripts/${params.id}/chat`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          message: userMessage,
+          history: chatMessages,
+        }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || "AI 응답 실패");
+      }
+
+      const data = await response.json();
+
+      // AI 응답 추가
+      setChatMessages([
+        ...newMessages,
+        { role: "assistant" as const, content: data.answer },
+      ]);
+    } catch (err) {
+      alert(
+        err instanceof Error ? err.message : "AI 응답 중 오류가 발생했습니다"
+      );
+      // 오류 시 사용자 메시지만 남기기
+      setChatMessages(newMessages);
+    } finally {
+      setChatLoading(false);
     }
   };
 
@@ -284,108 +341,201 @@ export default function TranscriptDetailPage() {
 
       {/* 컨텐츠 */}
       <div className="container mx-auto px-4 py-8">
-        {/* 화자별 대화 뷰 (채팅 형식) */}
+        {/* 2단 레이아웃 */}
         {speakers.length > 0 ? (
-          <div className="mx-auto max-w-4xl">
-            <div className="rounded-lg bg-white p-6 shadow dark:bg-zinc-800">
-              <div className="mb-4 flex items-center justify-between border-b border-zinc-200 pb-4 dark:border-zinc-700">
+          <div className="mx-auto grid max-w-7xl gap-6 lg:grid-cols-2">
+            {/* 왼쪽: 화자별 대화 */}
+            <div>
+              <div className="rounded-lg bg-white p-6 shadow dark:bg-zinc-800">
+                <div className="mb-4 flex items-center justify-between border-b border-zinc-200 pb-4 dark:border-zinc-700">
+                  <h2 className="text-xl font-bold text-zinc-900 dark:text-white">
+                    💬 대화 내역
+                  </h2>
+                  <span className="text-sm text-zinc-500">
+                    {mergedUtterances.length}개 발화
+                  </span>
+                </div>
+
+                {/* 채팅 스타일 대화 */}
+                <div className="max-h-[600px] space-y-4 overflow-y-auto">
+                  {mergedUtterances.map((segment, idx) => {
+                    const speaker = segment.speakerLabel || "Unknown";
+                    const isEven = speakers.indexOf(speaker) % 2 === 0;
+
+                    return (
+                      <div
+                        key={`${segment.id}-${idx}`}
+                        className={`flex ${
+                          isEven ? "justify-start" : "justify-end"
+                        }`}
+                      >
+                        <div
+                          className={`max-w-[75%] ${isEven ? "" : "items-end"}`}
+                        >
+                          {/* 화자 이름 */}
+                          <div
+                            className={`mb-1 flex items-center gap-2 text-xs font-medium ${
+                              isEven ? "" : "justify-end"
+                            }`}
+                          >
+                            <span
+                              className={`rounded-full px-2 py-0.5 ${getSpeakerColor(
+                                speaker
+                              )}`}
+                            >
+                              화자 {speaker}
+                            </span>
+                            <span className="text-zinc-400">
+                              {formatTime(segment.startMs)}
+                            </span>
+                          </div>
+
+                          {/* 말풍선 */}
+                          <div
+                            className={`rounded-2xl px-4 py-3 ${
+                              isEven
+                                ? "rounded-tl-none bg-zinc-100 dark:bg-zinc-700"
+                                : "rounded-tr-none bg-blue-100 dark:bg-blue-900"
+                            }`}
+                          >
+                            <p
+                              className={`text-sm leading-relaxed ${
+                                isEven
+                                  ? "text-zinc-800 dark:text-zinc-200"
+                                  : "text-blue-900 dark:text-blue-100"
+                              }`}
+                            >
+                              {segment.text}
+                            </p>
+                          </div>
+
+                          {/* 시간 정보 */}
+                          <div
+                            className={`mt-1 text-xs text-zinc-400 ${
+                              isEven ? "" : "text-right"
+                            }`}
+                          >
+                            {Math.round(
+                              (segment.endMs - segment.startMs) / 1000
+                            )}
+                            초
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* 통계 */}
+                <div className="mt-6 grid grid-cols-2 gap-4 border-t border-zinc-200 pt-4 dark:border-zinc-700 md:grid-cols-4">
+                  {speakers.map((speaker) => (
+                    <div
+                      key={speaker}
+                      className="rounded-lg bg-zinc-50 p-3 dark:bg-zinc-900"
+                    >
+                      <div
+                        className={`mb-1 inline-block rounded px-2 py-0.5 text-xs font-medium ${getSpeakerColor(
+                          speaker as string
+                        )}`}
+                      >
+                        화자 {speaker}
+                      </div>
+                      <div className="text-2xl font-bold text-zinc-900 dark:text-white">
+                        {segmentsBySpeaker[speaker as string].length}
+                      </div>
+                      <div className="text-xs text-zinc-500">발화</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* 오른쪽: AI 채팅 (RAG) */}
+            <div className="rounded-lg bg-white shadow dark:bg-zinc-800">
+              <div className="border-b border-zinc-200 p-6 dark:border-zinc-700">
                 <h2 className="text-xl font-bold text-zinc-900 dark:text-white">
-                  💬 대화 내역
+                  🤖 AI 어시스턴트
                 </h2>
-                <span className="text-sm text-zinc-500">
-                  {mergedUtterances.length}개 발화
-                </span>
+                <p className="mt-1 text-sm text-zinc-500">
+                  전사본 내용에 대해 질문해보세요
+                </p>
               </div>
 
-              {/* 채팅 스타일 대화 */}
-              <div className="max-h-[600px] space-y-4 overflow-y-auto">
-                {mergedUtterances.map((segment, idx) => {
-                  const speaker = segment.speakerLabel || "Unknown";
-                  const isEven = speakers.indexOf(speaker) % 2 === 0;
-
-                  return (
+              {/* 채팅 메시지 */}
+              <div className="h-[500px] space-y-4 overflow-y-auto p-6">
+                {chatMessages.length === 0 ? (
+                  <div className="flex h-full items-center justify-center text-center">
+                    <div>
+                      <div className="mb-3 text-4xl">💬</div>
+                      <p className="text-sm text-zinc-500">
+                        전사본 내용에 대해 궁금한 점을 물어보세요!
+                      </p>
+                      <div className="mt-4 space-y-2 text-xs text-zinc-400">
+                        <p>예: &quot;주요 내용을 요약해줘&quot;</p>
+                        <p>예: &quot;어떤 결정이 내려졌나요?&quot;</p>
+                        <p>예: &quot;가장 많이 언급된 주제는?&quot;</p>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  chatMessages.map((msg, idx) => (
                     <div
-                      key={`${segment.id}-${idx}`}
+                      key={idx}
                       className={`flex ${
-                        isEven ? "justify-start" : "justify-end"
+                        msg.role === "user" ? "justify-end" : "justify-start"
                       }`}
                     >
                       <div
-                        className={`max-w-[75%] ${isEven ? "" : "items-end"}`}
+                        className={`max-w-[85%] rounded-2xl px-4 py-3 ${
+                          msg.role === "user"
+                            ? "rounded-tr-none bg-blue-600 text-white"
+                            : "rounded-tl-none bg-zinc-100 text-zinc-800 dark:bg-zinc-700 dark:text-zinc-200"
+                        }`}
                       >
-                        {/* 화자 이름 */}
-                        <div
-                          className={`mb-1 flex items-center gap-2 text-xs font-medium ${
-                            isEven ? "" : "justify-end"
-                          }`}
-                        >
-                          <span
-                            className={`rounded-full px-2 py-0.5 ${getSpeakerColor(
-                              speaker
-                            )}`}
-                          >
-                            화자 {speaker}
-                          </span>
-                          <span className="text-zinc-400">
-                            {formatTime(segment.startMs)}
-                          </span>
-                        </div>
-
-                        {/* 말풍선 */}
-                        <div
-                          className={`rounded-2xl px-4 py-3 ${
-                            isEven
-                              ? "rounded-tl-none bg-zinc-100 dark:bg-zinc-700"
-                              : "rounded-tr-none bg-blue-100 dark:bg-blue-900"
-                          }`}
-                        >
-                          <p
-                            className={`text-sm leading-relaxed ${
-                              isEven
-                                ? "text-zinc-800 dark:text-zinc-200"
-                                : "text-blue-900 dark:text-blue-100"
-                            }`}
-                          >
-                            {segment.text}
-                          </p>
-                        </div>
-
-                        {/* 시간 정보 */}
-                        <div
-                          className={`mt-1 text-xs text-zinc-400 ${
-                            isEven ? "" : "text-right"
-                          }`}
-                        >
-                          {Math.round((segment.endMs - segment.startMs) / 1000)}
-                          초
-                        </div>
+                        <p className="whitespace-pre-wrap text-sm leading-relaxed">
+                          {msg.content}
+                        </p>
                       </div>
                     </div>
-                  );
-                })}
+                  ))
+                )}
+
+                {chatLoading && (
+                  <div className="flex justify-start">
+                    <div className="rounded-2xl rounded-tl-none bg-zinc-100 px-4 py-3 dark:bg-zinc-700">
+                      <div className="flex items-center gap-2">
+                        <div className="h-2 w-2 animate-bounce rounded-full bg-zinc-400"></div>
+                        <div className="h-2 w-2 animate-bounce rounded-full bg-zinc-400 [animation-delay:0.2s]"></div>
+                        <div className="h-2 w-2 animate-bounce rounded-full bg-zinc-400 [animation-delay:0.4s]"></div>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
 
-              {/* 통계 */}
-              <div className="mt-6 grid grid-cols-2 gap-4 border-t border-zinc-200 pt-4 dark:border-zinc-700 md:grid-cols-4">
-                {speakers.map((speaker) => (
-                  <div
-                    key={speaker}
-                    className="rounded-lg bg-zinc-50 p-3 dark:bg-zinc-900"
+              {/* 입력 폼 */}
+              <form
+                onSubmit={handleChatSubmit}
+                className="border-t border-zinc-200 p-4 dark:border-zinc-700"
+              >
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={chatInput}
+                    onChange={(e) => setChatInput(e.target.value)}
+                    placeholder="질문을 입력하세요..."
+                    disabled={chatLoading}
+                    className="flex-1 rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm text-zinc-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white"
+                  />
+                  <button
+                    type="submit"
+                    disabled={chatLoading || !chatInput.trim()}
+                    className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    <div
-                      className={`mb-1 inline-block rounded px-2 py-0.5 text-xs font-medium ${getSpeakerColor(
-                        speaker as string
-                      )}`}
-                    >
-                      화자 {speaker}
-                    </div>
-                    <div className="text-2xl font-bold text-zinc-900 dark:text-white">
-                      {segmentsBySpeaker[speaker as string].length}
-                    </div>
-                    <div className="text-xs text-zinc-500">발화</div>
-                  </div>
-                ))}
-              </div>
+                    전송
+                  </button>
+                </div>
+              </form>
             </div>
           </div>
         ) : (
@@ -447,7 +597,7 @@ export default function TranscriptDetailPage() {
         )}
 
         {/* 전체 텍스트 (하단) */}
-        <div className="mx-auto mt-12 max-w-4xl rounded-lg bg-white p-6 shadow dark:bg-zinc-800">
+        <div className="mx-auto mt-12 max-w-7xl rounded-lg bg-white p-6 shadow dark:bg-zinc-800">
           <h2 className="mb-4 text-xl font-bold text-zinc-900 dark:text-white">
             📝 전체 텍스트
           </h2>
