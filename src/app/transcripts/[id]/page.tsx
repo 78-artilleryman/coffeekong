@@ -54,6 +54,7 @@ export default function TranscriptDetailPage() {
   >([]);
   const [chatInput, setChatInput] = useState("");
   const [chatLoading, setChatLoading] = useState(false);
+  const [useWebSearch, setUseWebSearch] = useState(false);
 
   const fetchTranscript = async () => {
     try {
@@ -167,6 +168,7 @@ export default function TranscriptDetailPage() {
         body: JSON.stringify({
           message: userMessage,
           history: chatMessages,
+          useWebSearch: useWebSearch,
         }),
       });
 
@@ -453,11 +455,28 @@ export default function TranscriptDetailPage() {
             {/* 오른쪽: AI 채팅 (RAG) */}
             <div className="rounded-lg bg-white shadow dark:bg-zinc-800">
               <div className="border-b border-zinc-200 p-6 dark:border-zinc-700">
-                <h2 className="text-xl font-bold text-zinc-900 dark:text-white">
-                  🤖 AI 어시스턴트
-                </h2>
-                <p className="mt-1 text-sm text-zinc-500">
-                  전사본 내용에 대해 질문해보세요
+                <div className="mb-3 flex items-center justify-between">
+                  <h2 className="text-xl font-bold text-zinc-900 dark:text-white">
+                    🤖 AI 어시스턴트
+                  </h2>
+
+                  {/* 인터넷 검색 토글 */}
+                  <label className="flex cursor-pointer items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={useWebSearch}
+                      onChange={(e) => setUseWebSearch(e.target.checked)}
+                      className="h-4 w-4 rounded border-zinc-300 text-blue-600 focus:ring-2 focus:ring-blue-500"
+                    />
+                    <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                      🌐 인터넷 검색
+                    </span>
+                  </label>
+                </div>
+                <p className="text-sm text-zinc-500">
+                  {useWebSearch
+                    ? "전사본 + 최신 인터넷 정보를 결합하여 답변합니다"
+                    : "전사본 내용만 사용하여 답변합니다"}
                 </p>
               </div>
 
@@ -471,9 +490,19 @@ export default function TranscriptDetailPage() {
                         전사본 내용에 대해 궁금한 점을 물어보세요!
                       </p>
                       <div className="mt-4 space-y-2 text-xs text-zinc-400">
-                        <p>예: &quot;주요 내용을 요약해줘&quot;</p>
-                        <p>예: &quot;어떤 결정이 내려졌나요?&quot;</p>
-                        <p>예: &quot;가장 많이 언급된 주제는?&quot;</p>
+                        <p>💬 &quot;주요 내용을 요약해줘&quot;</p>
+                        <p>💬 &quot;어떤 결정이 내려졌나요?&quot;</p>
+                        {useWebSearch && (
+                          <>
+                            <p className="mt-3 font-medium text-blue-500">
+                              🌐 인터넷 검색 활성화:
+                            </p>
+                            <p>
+                              💬 &quot;언급된 AI 트렌드의 최신 정보는?&quot;
+                            </p>
+                            <p>💬 &quot;이 기술의 현재 시장 상황은?&quot;</p>
+                          </>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -523,16 +552,24 @@ export default function TranscriptDetailPage() {
                     type="text"
                     value={chatInput}
                     onChange={(e) => setChatInput(e.target.value)}
-                    placeholder="질문을 입력하세요..."
+                    placeholder={
+                      useWebSearch
+                        ? "전사본 + 인터넷 검색으로 질문하세요..."
+                        : "전사본 내용에 대해 질문하세요..."
+                    }
                     disabled={chatLoading}
                     className="flex-1 rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm text-zinc-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white"
                   />
                   <button
                     type="submit"
                     disabled={chatLoading || !chatInput.trim()}
-                    className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+                    className={`rounded-lg px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50 ${
+                      useWebSearch
+                        ? "bg-green-600 hover:bg-green-700"
+                        : "bg-blue-600"
+                    }`}
                   >
-                    전송
+                    {useWebSearch ? "🌐" : "📄"} 전송
                   </button>
                 </div>
               </form>
