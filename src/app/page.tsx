@@ -629,36 +629,63 @@ export default function Home() {
         )}
 
         {/* 기능 설명 */}
-        <div className="mx-auto mt-12 max-w-4xl">
+        <div className="mx-auto mt-12 max-w-5xl">
           <h2 className="mb-6 text-center text-2xl font-bold text-zinc-900 dark:text-white">
             🚀 주요 기능
           </h2>
-          <div className="grid gap-6 md:grid-cols-3">
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
             <div className="rounded-xl bg-white p-6 shadow-lg dark:bg-zinc-800">
               <div className="mb-3 text-3xl">🎤</div>
               <h3 className="mb-2 font-semibold text-zinc-900 dark:text-white">
-                Whisper AI 전사
+                AssemblyAI 전사
               </h3>
               <p className="text-sm text-zinc-600 dark:text-zinc-400">
-                OpenAI의 최신 Whisper 모델로 정확한 음성 인식
+                고급 AI로 빠르고 정확한 음성-텍스트 변환 (10분당 약 1분 처리)
               </p>
             </div>
             <div className="rounded-xl bg-white p-6 shadow-lg dark:bg-zinc-800">
-              <div className="mb-3 text-3xl">🔄</div>
+              <div className="mb-3 text-3xl">🎭</div>
               <h3 className="mb-2 font-semibold text-zinc-900 dark:text-white">
-                LangGraph 워크플로우
+                자동 화자 분리
               </h3>
               <p className="text-sm text-zinc-600 dark:text-zinc-400">
-                파일 저장 → 전사 → DB 저장 → 청크 생성 자동화
+                AI가 대화에서 화자를 자동으로 구분하여 채팅 형식으로 표시
               </p>
             </div>
             <div className="rounded-xl bg-white p-6 shadow-lg dark:bg-zinc-800">
-              <div className="mb-3 text-3xl">📦</div>
+              <div className="mb-3 text-3xl">💬</div>
               <h3 className="mb-2 font-semibold text-zinc-900 dark:text-white">
-                RAG 준비 완료
+                RAG 질의응답
               </h3>
               <p className="text-sm text-zinc-600 dark:text-zinc-400">
-                벡터 임베딩과 청크로 나눠 검색 가능
+                전사본 내용을 기반으로 AI에게 질문하고 답변받기
+              </p>
+            </div>
+            <div className="rounded-xl bg-white p-6 shadow-lg dark:bg-zinc-800">
+              <div className="mb-3 text-3xl">🌐</div>
+              <h3 className="mb-2 font-semibold text-zinc-900 dark:text-white">
+                하이브리드 모드
+              </h3>
+              <p className="text-sm text-zinc-600 dark:text-zinc-400">
+                전사본 + 인터넷 검색을 결합하여 최신 정보까지 제공
+              </p>
+            </div>
+            <div className="rounded-xl bg-white p-6 shadow-lg dark:bg-zinc-800">
+              <div className="mb-3 text-3xl">📋</div>
+              <h3 className="mb-2 font-semibold text-zinc-900 dark:text-white">
+                전사본 관리
+              </h3>
+              <p className="text-sm text-zinc-600 dark:text-zinc-400">
+                모든 전사본을 저장하고 관리하며 언제든 다시 확인 가능
+              </p>
+            </div>
+            <div className="rounded-xl bg-white p-6 shadow-lg dark:bg-zinc-800">
+              <div className="mb-3 text-3xl">⚡</div>
+              <h3 className="mb-2 font-semibold text-zinc-900 dark:text-white">
+                빠른 처리
+              </h3>
+              <p className="text-sm text-zinc-600 dark:text-zinc-400">
+                최적화된 워크플로우로 전사본 생성 및 청크 분할 자동화
               </p>
             </div>
           </div>
