@@ -56,6 +56,7 @@ export default function Home() {
   const [file, setFile] = useState<File | null>(null);
   const [tags, setTags] = useState("");
   const [enableDiarization, setEnableDiarization] = useState(false); // 🎯 화자 분리
+  const [speakerCount, setSpeakerCount] = useState(2); // 화자 수
   const [loading, setLoading] = useState(false);
   const [loadingStatus, setLoadingStatus] = useState("");
   const [result, setResult] = useState<TranscriptResult | null>(null);
@@ -66,6 +67,7 @@ export default function Home() {
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [selectedTranscript, setSelectedTranscript] =
     useState<TranscriptDetail | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
@@ -122,6 +124,35 @@ export default function Home() {
     }
   }, [activeTab]);
 
+  const handleDeleteTranscript = async (transcriptId: string) => {
+    if (
+      !confirm("이 전사본을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.")
+    ) {
+      return;
+    }
+
+    setDeletingId(transcriptId);
+
+    try {
+      const response = await fetch(`/api/transcripts/${transcriptId}`, {
+        method: "DELETE",
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || "삭제 실패");
+      }
+
+      // 목록에서 제거
+      setTranscripts((prev) => prev.filter((t) => t.id !== transcriptId));
+      console.log("🗑️ 전사본 삭제 완료");
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "삭제 중 오류가 발생했습니다");
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -142,13 +173,18 @@ export default function Home() {
         formData.append("tags", tags);
       }
       formData.append("enableDiarization", enableDiarization.toString());
+      if (enableDiarization) {
+        formData.append("speakerCount", speakerCount.toString());
+      }
 
       // 예상 시간 계산 (1분당 약 10초)
       const durationMinutes = file.size / (1024 * 1024) / 0.5; // 대략적 추정
       const estimatedSeconds = Math.ceil(durationMinutes * 10);
 
       setLoadingStatus(
-        `🎤 Whisper AI로 전사 중... (예상 시간: 약 ${estimatedSeconds}초)`
+        `🎤 AssemblyAI로 전사 중... (예상 시간: 약 ${Math.ceil(
+          estimatedSeconds / 3
+        )}초)`
       );
 
       const startTime = Date.now();
@@ -192,7 +228,7 @@ export default function Home() {
             음성 파일을 텍스트로 변환하는 AI 서비스
           </p>
           <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-500">
-            Powered by OpenAI Whisper + LangChain + LangGraph
+            Powered by AssemblyAI - 빠르고 정확한 AI 전사
           </p>
         </div>
 
@@ -285,14 +321,35 @@ export default function Home() {
                     />
                     <div className="flex-1">
                       <div className="font-medium text-zinc-900 dark:text-white">
-                        🎭 화자 분리 (AI 추론)
+                        🎭 화자 분리 (AssemblyAI)
                       </div>
                       <div className="text-xs text-zinc-600 dark:text-zinc-400">
-                        GPT가 대화 패턴을 분석하여 화자를 구분합니다 (추가 비용:
-                        ~$0.01)
+                        고급 AI로 화자를 자동 구분합니다 (10분당 약 $0.15)
                       </div>
                     </div>
                   </label>
+
+                  {/* 화자 수 입력 (화자 분리 활성화 시) */}
+                  {enableDiarization && (
+                    <div className="mt-3 flex items-center gap-3 border-t border-blue-200 pt-3 dark:border-blue-700">
+                      <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                        예상 화자 수:
+                      </label>
+                      <input
+                        type="number"
+                        min="1"
+                        max="10"
+                        value={speakerCount}
+                        onChange={(e) =>
+                          setSpeakerCount(parseInt(e.target.value) || 2)
+                        }
+                        className="w-20 rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-center text-sm text-zinc-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-zinc-600 dark:bg-zinc-700 dark:text-white"
+                      />
+                      <span className="text-xs text-zinc-600 dark:text-zinc-400">
+                        명 (선택사항)
+                      </span>
+                    </div>
+                  )}
                 </div>
 
                 {/* 제출 버튼 */}
@@ -429,7 +486,7 @@ export default function Home() {
                       className="rounded-lg border border-zinc-200 p-4 transition hover:border-blue-500 hover:shadow-md dark:border-zinc-700 dark:hover:border-blue-500"
                     >
                       <div className="mb-2 flex items-start justify-between">
-                        <div>
+                        <div className="flex-1">
                           <h3 className="font-semibold text-zinc-900 dark:text-white">
                             {transcript.source.title ||
                               `전사본 #${transcript.id}`}
@@ -463,12 +520,24 @@ export default function Home() {
                               </div>
                             )}
                         </div>
-                        <a
-                          href={`/transcripts/${transcript.id}`}
-                          className="rounded-lg bg-blue-600 px-3 py-1 text-xs text-white hover:bg-blue-700"
-                        >
-                          상세보기
-                        </a>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() =>
+                              handleDeleteTranscript(transcript.id)
+                            }
+                            disabled={deletingId === transcript.id}
+                            className="rounded-lg bg-red-100 px-3 py-1 text-xs text-red-700 hover:bg-red-200 disabled:opacity-50 dark:bg-red-900/20 dark:text-red-400 dark:hover:bg-red-900/40"
+                            title="삭제"
+                          >
+                            {deletingId === transcript.id ? "..." : "🗑️"}
+                          </button>
+                          <a
+                            href={`/transcripts/${transcript.id}`}
+                            className="rounded-lg bg-blue-600 px-3 py-1 text-xs text-white hover:bg-blue-700"
+                          >
+                            상세보기
+                          </a>
+                        </div>
                       </div>
                       <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
                         {transcript.textPreview}

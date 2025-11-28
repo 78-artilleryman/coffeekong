@@ -87,10 +87,25 @@ export async function DELETE(
     const { id } = await params;
     const transcriptId = BigInt(id);
 
-    // 연관된 세그먼트와 청크는 cascade로 자동 삭제됨
-    await prisma.transcripts.delete({
-      where: { id: transcriptId },
+    // 트랜잭션으로 순차 삭제
+    await prisma.$transaction(async (tx) => {
+      // 1. 청크 삭제 (cascade가 설정되어 있지 않음)
+      await tx.chunks.deleteMany({
+        where: { transcript_id: transcriptId },
+      });
+
+      // 2. 세그먼트 삭제 (cascade 설정되어 있지만 명시적으로)
+      await tx.transcript_segments.deleteMany({
+        where: { transcript_id: transcriptId },
+      });
+
+      // 3. 전사본 삭제
+      await tx.transcripts.delete({
+        where: { id: transcriptId },
+      });
     });
+
+    console.log(`🗑️ 전사본 #${id} 삭제 완료 (청크, 세그먼트 포함)`);
 
     return NextResponse.json({
       success: true,

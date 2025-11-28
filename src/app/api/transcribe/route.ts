@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { transcribeAudioFile } from "@/lib/langchain/transcription";
-import { transcribeWithLLMDiarization } from "@/lib/langchain/transcription-with-llm-diarization";
+import { transcribeWithAssemblyAI } from "@/lib/assemblyai/transcription";
 
 export const runtime = "nodejs";
 export const maxDuration = 300; // 5분 타임아웃
@@ -14,6 +13,9 @@ export async function POST(request: NextRequest) {
     const userId = formData.get("userId") as string | null;
     const tags = formData.get("tags") as string | null;
     const enableDiarization = formData.get("enableDiarization") === "true"; // GPT 화자 분리
+    const speakerCount = parseInt(
+      (formData.get("speakerCount") as string) || "2"
+    );
 
     if (!file) {
       return NextResponse.json({ error: "파일이 필요합니다" }, { status: 400 });
@@ -80,41 +82,31 @@ export async function POST(request: NextRequest) {
     // 태그 파싱
     const parsedTags = tags ? tags.split(",").map((t) => t.trim()) : [];
 
-    // LangGraph 워크플로우 실행
+    // AssemblyAI 전사 (화자 분리 통합)
     console.log(
-      `🚀 전사 워크플로우 시작 (GPT 화자 분리: ${enableDiarization})...`
+      `🚀 AssemblyAI 전사 시작 (화자 분리: ${enableDiarization}, 화자 수: ${speakerCount})...`
     );
-    const result = enableDiarization
-      ? await transcribeWithLLMDiarization(
-          buffer,
-          file.name,
-          file.type,
-          userId || undefined,
-          parsedTags
-        )
-      : await transcribeAudioFile(
-          buffer,
-          file.name,
-          file.type,
-          userId || undefined,
-          parsedTags
-        );
+    const result = await transcribeWithAssemblyAI({
+      audioFile: buffer,
+      fileName: file.name,
+      mimeType: file.type,
+      userId: userId || undefined,
+      tags: parsedTags,
+      speakerCount: enableDiarization ? speakerCount : undefined,
+    });
 
     console.log(`✅ 전사 완료!`);
 
     return NextResponse.json({
       success: true,
       data: {
-        sourceId: result.sourceId?.toString(),
-        transcriptId: result.transcriptId?.toString(),
-        text: result.text || "",
+        sourceId: result.sourceId.toString(),
+        transcriptId: result.transcriptId.toString(),
+        text: result.text,
         language: result.language,
-        segmentCount: Array.isArray(result.segments)
-          ? result.segments.length
-          : 0,
-        wordCount: result.text
-          ? (result.text as string).split(/\s+/).length
-          : 0,
+        segmentCount: result.segments.length,
+        wordCount: result.text.split(/\s+/).length,
+        speakerCount: result.speakerCount,
       },
     });
   } catch (error) {
