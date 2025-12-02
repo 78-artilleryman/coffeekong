@@ -45,6 +45,7 @@ export default function TranscriptDetailPage() {
   const [diarizationLoading, setDiarizationLoading] = useState(false);
   const [diarizationError, setDiarizationError] = useState<string | null>(null);
   const [speakerCount, setSpeakerCount] = useState(2);
+  const [audioFile, setAudioFile] = useState<File | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
@@ -92,12 +93,18 @@ export default function TranscriptDetailPage() {
     setDiarizationError(null);
 
     try {
+      // FormData로 전송 (AssemblyAI 사용)
+      const formData = new FormData();
+      formData.append("speakerCount", speakerCount.toString());
+
+      // 오디오 파일이 있으면 추가
+      if (audioFile) {
+        formData.append("file", audioFile);
+      }
+
       const response = await fetch(`/api/transcripts/${params.id}/diarize`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ speakerCount }),
+        body: formData,
       });
 
       if (!response.ok) {
@@ -106,7 +113,7 @@ export default function TranscriptDetailPage() {
       }
 
       const result = await response.json();
-      console.log("✅ 화자 분리 완료:", result);
+      console.log("✅ AssemblyAI 화자 분리 완료:", result);
 
       // 전사본 다시 불러오기
       await fetchTranscript();
@@ -582,8 +589,35 @@ export default function TranscriptDetailPage() {
               화자 정보가 없습니다
             </p>
             <p className="mb-6 text-sm text-zinc-500">
-              GPT를 사용하여 화자를 자동으로 구분할 수 있습니다
+              AssemblyAI를 사용하여 화자를 자동으로 구분할 수 있습니다
             </p>
+
+            {/* 오디오 파일 업로드 */}
+            <div className="mb-6">
+              <label className="mb-2 block text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                오디오 파일 (필수):
+              </label>
+              <input
+                type="file"
+                accept=".mp3,.MP3,.wav,.WAV,.m4a,.M4A,.mp4,.MP4,.webm,.WEBM,.ogg,.OGG,audio/*"
+                onChange={(e) => {
+                  const file = e.target.files?.[0] || null;
+                  setAudioFile(file);
+                  setDiarizationError(null);
+                }}
+                disabled={diarizationLoading}
+                className="w-full cursor-pointer rounded-lg border-2 border-dashed border-zinc-300 bg-zinc-50 p-4 text-sm text-zinc-600 transition hover:border-zinc-400 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 dark:border-zinc-600 dark:bg-zinc-700 dark:text-zinc-300"
+              />
+              {audioFile && (
+                <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
+                  선택된 파일: <strong>{audioFile.name}</strong> (
+                  {(audioFile.size / 1024 / 1024).toFixed(2)} MB)
+                </p>
+              )}
+              <p className="mt-1 text-xs text-zinc-500">
+                화자 분리를 위해 원본 오디오 파일이 필요합니다
+              </p>
+            </div>
 
             {/* 화자 수 입력 */}
             <div className="mb-6 flex items-center justify-center gap-3">
@@ -611,7 +645,7 @@ export default function TranscriptDetailPage() {
             <div className="flex justify-center gap-3">
               <button
                 onClick={handleDiarization}
-                disabled={diarizationLoading}
+                disabled={diarizationLoading || !audioFile}
                 className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-6 py-3 text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {diarizationLoading ? (
@@ -620,7 +654,7 @@ export default function TranscriptDetailPage() {
                     화자 분리 중...
                   </>
                 ) : (
-                  <>🤖 화자 분리 실행</>
+                  <>🎤 AssemblyAI 화자 분리 실행</>
                 )}
               </button>
               <Link

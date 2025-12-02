@@ -329,3 +329,25 @@ export async function transcribeWithAssemblyAI(
     throw error;
   }
 }
+
+// 기존 전사본에 화자 분리를 추가하기 위한 재전사 함수
+export async function retranscribeWithDiarization(
+  audioFile: Buffer,
+  speakerCount: number
+): Promise<AssemblyAIResponse> {
+  try {
+    // 1. AssemblyAI에 파일 업로드
+    const audioUrl = await uploadAudioFile(audioFile);
+
+    // 2. 화자 분리 활성화한 전사 요청
+    const transcriptId = await createTranscript(audioUrl, speakerCount);
+
+    // 3. 결과 대기
+    const result = await pollTranscript(transcriptId);
+
+    return result;
+  } catch (error) {
+    console.error("AssemblyAI 재전사 오류:", error);
+    throw error;
+  }
+}

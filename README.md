@@ -269,25 +269,6 @@ pnpm lint
 
 자세한 스키마는 `prisma/schema.prisma` 파일을 참고하세요.
 
-## 📦 배포
-
-### Vercel 배포 (권장)
-
-1. GitHub 저장소에 푸시
-2. [Vercel](https://vercel.com)에서 프로젝트 연결
-3. 환경 변수 설정:
-   - `DATABASE_URL`
-   - `ASSEMBLYAI_API_KEY`
-   - `OPENAI_API_KEY`
-   - `PERPLEXITY_API_KEY` (선택사항)
-4. 빌드 명령어: `pnpm prisma generate && pnpm build`
-5. 배포!
-
-### 프로덕션 마이그레이션
-
-```bash
-pnpm prisma migrate deploy
-```
 
 ## 📞 문의
 
