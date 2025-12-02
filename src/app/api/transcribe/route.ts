@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { transcribeWithAssemblyAI } from "@/lib/assemblyai/transcription";
+import { runTranscriptionWorkflow } from "@/lib/langchain/transcription-workflow";
 
 export const runtime = "nodejs";
 export const maxDuration = 300; // 5분 타임아웃
@@ -82,18 +82,15 @@ export async function POST(request: NextRequest) {
     // 태그 파싱
     const parsedTags = tags ? tags.split(",").map((t) => t.trim()) : [];
 
-    // AssemblyAI 전사 (화자 분리 통합)
-    console.log(
-      `🚀 AssemblyAI 전사 시작 (화자 분리: ${enableDiarization}, 화자 수: ${speakerCount})...`
+    // LangChain 체인으로 전사 워크플로우 실행
+    const result = await runTranscriptionWorkflow(
+      buffer,
+      file.name,
+      file.type,
+      userId || undefined,
+      parsedTags,
+      enableDiarization ? speakerCount : undefined
     );
-    const result = await transcribeWithAssemblyAI({
-      audioFile: buffer,
-      fileName: file.name,
-      mimeType: file.type,
-      userId: userId || undefined,
-      tags: parsedTags,
-      speakerCount: enableDiarization ? speakerCount : undefined,
-    });
 
     console.log(`✅ 전사 완료!`);
 
