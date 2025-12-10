@@ -58,7 +58,6 @@ model chunks {
   keywords         keywords[]
   message_contexts message_contexts[]
 
-  @@unique([source_id, chunk_index])
   @@index([embedding], map: "idx_chunks_embedding_cosine")
   @@index([lang], map: "idx_chunks_lang")
   @@index([metadata], map: "idx_chunks_metadata_gin", type: Gin)
